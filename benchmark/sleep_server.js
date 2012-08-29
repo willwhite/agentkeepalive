@@ -14,6 +14,8 @@ var http = require('http');
 
 var count = 0;
 http.createServer(function (req, res) {
+  req.connection.setNoDelay(false);
+  res.socket.setNoDelay(false);
   var size = 0;
   var data = '';
   req.on('data', function (chunk) {
@@ -29,8 +31,13 @@ http.createServer(function (req, res) {
         size: size,
         data: data
       };
-      res.socket.setNoDelay(true);
-      res.end(JSON.stringify(result));
+      res.writeHead(200, {
+        // 'Content-Type': 'text/json'
+      });
+      res.write('abc');
+      process.nextTick(function () {
+        res.end(JSON.stringify(result));
+      });
     }, timeout);
   });
 }).listen(1984);

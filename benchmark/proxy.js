@@ -15,6 +15,8 @@ var Agent = require('../');
 
 var maxSockets = parseInt(process.argv[2], 10) || 10;
 var SERVER = process.argv[3] || '127.0.0.1';
+var port = parseInt(process.argv[5], 10) || 1985;
+var SERVER_PORT = parseInt(process.argv[4], 10) || 1984;
 
 var agentKeepalive = new Agent({
   maxSockets: maxSockets,
@@ -61,9 +63,10 @@ var rtNormals = {
 };
 
 setInterval(function () {
-  var name = SERVER + ':1984';
+  var name = SERVER + ':' + SERVER_PORT;
   console.log('----------------------------------------------------------------');
-  console.log('[proxy.js:%d] keepalive, %d created, %d requestFinished, %d req/socket, %s requests, %s sockets, %s unusedSockets, %d timeout\n%j',
+  console.log('[%s:proxy.js:%d] keepalive, %d created, %d requestFinished, %d req/socket, %s requests, %s sockets, %s unusedSockets, %d timeout\n%j',
+    name,
     count,
     agentKeepalive.createSocketCount,
     agentKeepalive.requestFinishedCount,
@@ -75,7 +78,8 @@ setInterval(function () {
     rtKeepalives
   );
   console.log('----------------------------------------------------------------');
-  console.log('[proxy.js:%d] normal   , %d created, %d requestFinished, %d req/socket, %s requests, %s sockets\n%j',
+  console.log('[%s:proxy.js:%d] normal   , %d created, %d requestFinished, %d req/socket, %s requests, %s sockets\n%j',
+    name,
     count,
     agentHttp.createSocketCount,
     agentHttp.requestFinishedCount,
@@ -102,9 +106,11 @@ http.createServer(function (req, res) {
     agent = agentKeepalive;
     rts = rtKeepalives;
   }
+  agent = agentKeepalive;
+  rts = rtKeepalives;
   var options = {
     host: SERVER,
-    port: 1984,
+    port: SERVER_PORT,
     path: path,
     method: method,
     agent: agent
@@ -113,8 +119,13 @@ http.createServer(function (req, res) {
     var timer = null;
     var start = Date.now();
     var client = http.request(options, function (response) {
-      response.pipe(res);
+      res.writeHeader(response.statusCode, response.headers);
+      response.on('data', function (data) {
+        res.write(data);
+      });
+      // response.pipe(res);
       response.once('end', function () {
+        res.end();
         var use = Date.now() - start;
         if (use < 10) {
           rts[' <10ms']++;
@@ -154,10 +165,13 @@ http.createServer(function (req, res) {
       timer = null;
       client.abort();
     }, 2000);
-    client.end(postData);
+    client.write('foo');
+    process.nextTick(function () {
+      client.end(postData);
+    });
   });
   
 
-}).listen(1985);
+}).listen(port);
 
-console.log('proxy start, listen on 1985');
+console.log('proxy start, listen on ' + port);
